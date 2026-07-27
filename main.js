@@ -62,7 +62,7 @@ loader.load(
     (gltf) => {
         // 加载成功，将模型添加到场景中
         const model = gltf.scene;
-        model.position.set(5, 2, 0);
+        model.position.set(0, 2, -3);
         model.scale.set(0.8, 0.8, 0.8);
         scene.add(model);
         console.log('模型加载成功！');
