@@ -1,33 +1,104 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My First 3D game</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>我的3D游戏</title>
     <style>
-        /* 重置页面边距，让3D场景铺满全屏 */
-        body { margin: 0; overflow: hidden; }
-        
-        /* 屏幕中央的操作提示 */
+        /* --- 原有样式 --- */
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
         #info {
             position: absolute;
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: deepskyblue;
+            color: white;
             background: rgba(0,0,0,0.6);
             padding: 10px 20px;
             border-radius: 8px;
-            font-family:  Corbel, sans-serif;
-            pointer-events: none; /* 让文字不阻挡鼠标点击 */
+            font-family: Arial, sans-serif;
+            pointer-events: none;
+            z-index: 10;
+        }
+        /* --- 新增：移动端控制按钮样式 --- */
+        #mobile-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 30px;
+            display: none; /* 默认隐藏，仅在移动设备上显示 */
+            z-index: 20;
+            user-select: none;
+            touch-action: none; /* 防止触摸滚动 */
+        }
+
+        .ctrl-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.6);
+            color: white;
+            font-size: 28px;
+            text-align: center;
+            line-height: 60px;
+            position: absolute;
+            touch-action: none;
+        }
+
+            .ctrl-btn:active {
+                background: rgba(255, 255, 255, 0.6);
+            }
+
+        #btn-w {
+            top: 0;
+            left: 70px;
+        }
+
+        #btn-s {
+            bottom: 0;
+            left: 70px;
+        }
+
+        #btn-a {
+            top: 70px;
+            left: 0;
+        }
+
+        #btn-d {
+            top: 70px;
+            left: 140px;
+        }
+
+        /* 检测移动设备，显示按钮 */
+        @media (pointer: coarse) {
+            #mobile-controls {
+                display: block;
+            }
+
+            #info {
+                font-size: 14px;
+                top: 10px;
+                padding: 6px 12px;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- 操作提示 -->
-    <div id="info">🖱️ 点击屏幕开始游戏 | WASD 移动 | 鼠标拖动视角</div>
+    <div id="info">🖱️ 拖拽旋转视角 | WASD 移动</div>
 
-    <!-- 配置Three.js的导入方式 -->
+    <!-- 移动端控制按钮 -->
+    <div id="mobile-controls">
+        <div class="ctrl-btn" id="btn-w">▲</div>
+        <div class="ctrl-btn" id="btn-s">▼</div>
+        <div class="ctrl-btn" id="btn-a">◀</div>
+        <div class="ctrl-btn" id="btn-d">▶</div>
+    </div>
+
+    <!-- 配置 Three.js 导入映射 -->
     <script type="importmap">
         {
             "imports": {
@@ -37,7 +108,6 @@
         }
     </script>
 
-    <!-- 引入我们的主代码 -->
     <script type="module" src="main.js"></script>
 </body>
 </html>
