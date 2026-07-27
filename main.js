@@ -1,62 +1,45 @@
-﻿// ============================================
-// 第1部分：导入必要的库
-// ============================================
-
-
-import * as THREE from 'three';  // Three.js核心库
+import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';  // 第一人称控制器
 
-// ============================================
-// 第2部分：创建场景、相机、渲染器（3D世界的三大件）
-// ============================================
 
-// 2.1 创建场景（类似一个空房间）
+// --- 场景、相机、渲染器 ---
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x88ccff); // 设置天空蓝背景
+scene.background = new THREE.Color(0x88ccff);
 
-// 2.2 创建相机（类似人的眼睛）
-const camera = new THREE.PerspectiveCamera(
-    75,                         // 视野角度（75度，类似人眼）
-    window.innerWidth / window.innerHeight, // 宽高比
-    0.1,                        // 最近能看到多近
-    1000                        // 最远能看到多远
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 1.7, 5);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+document.body.appendChild(renderer.domElement);
+
+// --- 地面和网格 ---
+const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(20, 20),
+    new THREE.MeshStandardMaterial({ color: 0x2c3e50, side: THREE.DoubleSide })
 );
-camera.position.y = 1.7; // 模拟人的眼睛高度（1.7米）
+ground.rotation.x = -Math.PI / 2;
+ground.position.y = -0.01;
+ground.receiveShadow = true;
+scene.add(ground);
+scene.add(new THREE.GridHelper(20, 20, 0x888888, 0x444444));
 
-// 2.3 创建渲染器（把3D世界画到屏幕上）
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight); // 设置画布大小
-renderer.shadowMap.enabled = true; // 开启阴影效果
-document.body.appendChild(renderer.domElement); // 把画布添加到网页上
+// --- 方块参照物 ---
+const boxMaterial = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
+for (let i = 0; i < 10; i++) {
+    const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), boxMaterial);
+    const angle = (i / 10) * Math.PI * 2;
+    const radius = 3 + Math.random() * 2;
+    box.position.set(Math.cos(angle) * radius, 0.25, Math.sin(angle) * radius);
+    box.castShadow = true;
+    box.receiveShadow = true;
+    scene.add(box);
+}
 
-// ============================================
-// 第3部分：添加物体（让场景有东西看）
-// ============================================
 
-// 3.1 创建地面
-const groundGeometry = new THREE.PlaneGeometry(20, 20); // 20x20米的地面
-const groundMaterial = new THREE.MeshStandardMaterial({ 
-    color: 0x2c3e50, 
-    side: THREE.DoubleSide // 双面渲染，从下面也能看到
-});
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-ground.rotation.x = -Math.PI / 2; // 旋转使其水平（默认是竖着的）
-ground.position.y = -0.01; // 稍微下沉一点，避免和网格重叠闪烁
-ground.receiveShadow = true; // 接收阴影
-scene.add(ground); // 把地面放到场景中
-
-// 3.2 添加网格辅助线（方便看到移动和位置）
-const gridHelper = new THREE.GridHelper(20, 20, 0x888888, 0x444444);
-scene.add(gridHelper);
-
-// --- 加载 3D 模型 ---
-// 1. 创建一个加载器实例
 const loader = new GLTFLoader();
 
-// 2. 加载模型文件
-// 第一个参数是模型文件的路径
-// 第二个参数是加载成功后的回调函数
 loader.load(
     'models/Head727.glb', // 替换成你的模型文件路径
     (gltf) => {
@@ -77,139 +60,160 @@ loader.load(
     }
 );
 
-// 3.3 添加一些彩色方块作为参照物
-const boxMaterial = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
-for (let i = 0; i < 10; i++) {
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), boxMaterial);
-    // 让方块围成一个圆圈
-    const angle = (i / 10) * Math.PI * 2;
-    const radius = 3 + Math.random() * 2;
-    box.position.set(
-        Math.cos(angle) * radius, // x坐标
-        0.25,                     // y坐标（抬离地面）
-        Math.sin(angle) * radius  // z坐标
-    );
-    box.castShadow = true;  // 投射阴影
-    box.receiveShadow = true; // 接收阴影
-    scene.add(box);
-}
-
-// 3.4 添加灯光（没有灯光，物体是黑色的）
-const ambientLight = new THREE.AmbientLight(0x404060); // 环境光（提供基础照明）
-scene.add(ambientLight);
-
-const dirLight = new THREE.DirectionalLight(0xffffff, 1); // 方向光（模拟太阳）
-dirLight.position.set(5, 10, 7); // 从斜上方照射
+// --- 灯光 ---
+scene.add(new THREE.AmbientLight(0x404060));
+const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+dirLight.position.set(5, 10, 7);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-// ============================================
-// 第4部分：设置第一人称控制器（核心！）
-// ============================================
+// --- 自定义视角控制 ---
+let pitch = 0;
+let yaw = 0;
+const pitchLimit = Math.PI / 2 - 0.1;
+camera.rotation.order = 'YXZ';
 
-const controls = new PointerLockControls(camera, renderer.domElement);
+function updateCameraRotation() {
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+}
 
-// 点击屏幕时锁定鼠标指针（进入第一人称模式）
+let isPointerDown = false;
+//点击锁定鼠标移动
+let isCoolingDown = false; // 冷却中
+let isLocked = false;
+let prevPointerX = 0, prevPointerY = 0;
+
+
 renderer.domElement.addEventListener('click', () => {
-    controls.lock();
+    if (isLocked || isCoolingDown) return; // 已锁定或冷却中，不处理
+    renderer.domElement.requestPointerLock().catch(err => {
+        // 如果仍然发生错误，可在此忽略
+        console.warn('锁定请求被拒绝:', err);
+    });
+});
+// 2. 监听锁定状态变化
+document.addEventListener('pointerlockchange', () => {
+    isLocked = !!document.pointerLockElement; // 如果锁定元素存在则为 true，否则 false
+
+    const info = document.getElementById('info');
+    if (!isLocked) {
+        isCoolingDown = true;
+        setTimeout(() => {
+            isCoolingDown = false;
+        }, 300); // 300ms 冷却时间，足够避免错误
+        info.textContent = '🖱️ 点击屏幕锁定鼠标 | WASD 移动';
+    } else {
+        info.textContent = '🖱️ 鼠标移动环顾 | WASD 移动';
+    }
 });
 
-// 锁定成功时的提示
-controls.addEventListener('lock', () => {
-    console.log('✅ 已进入第一人称模式！使用 WASD 移动，鼠标环顾');
-    document.getElementById('info').style.display = 'none'; // 隐藏提示文字
+document.addEventListener('mousemove', (e) => {
+    if (!isLocked) return;
+    const dx = e.movementX || 0;
+    const dy = e.movementY || 0;
+    yaw -= dx * 0.002;      // 灵敏度系数可调
+    pitch -= dy * 0.002;
+    pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
+    updateCameraRotation();  // 你已有的旋转更新函数
 });
 
-// 解锁时的提示（按 ESC 键退出）
-controls.addEventListener('unlock', () => {
-    console.log('⏸️ 已退出第一人称模式');
-    document.getElementById('info').style.display = 'block'; // 重新显示提示
-});
 
-// ============================================
-// 第5部分：键盘监听（检测WASD是否被按下）
-// ============================================
+renderer.domElement.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 1) {
+        isPointerDown = true;
+        prevPointerX = e.touches[0].clientX;
+        prevPointerY = e.touches[0].clientY;
+    }
+}, { passive: true });
+renderer.domElement.addEventListener('touchmove', (e) => {
+    if (!isPointerDown || e.touches.length !== 1) return;
+    const dx = e.touches[0].clientX - prevPointerX;
+    const dy = e.touches[0].clientY - prevPointerY;
+    yaw -= dx * 0.005;
+    pitch -= dy * 0.005;
+    pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
+    updateCameraRotation();
+    prevPointerX = e.touches[0].clientX;
+    prevPointerY = e.touches[0].clientY;
+}, { passive: true });
+renderer.domElement.addEventListener('touchend', () => { isPointerDown = false; }, { passive: true });
 
-// 用对象记录每个按键的状态
-const keyState = {
-    w: false, 
-    a: false, 
-    s: false, 
-    d: false
-};
-
-// 当按键被按下时，记录状态
-document.addEventListener('keydown', (event) => {
-    switch (event.code) {
+// --- 键盘移动 ---
+const keyState = { w: false, a: false, s: false, d: false };
+document.addEventListener('keydown', (e) => {
+    switch (e.code) {
         case 'KeyW': keyState.w = true; break;
         case 'KeyA': keyState.a = true; break;
         case 'KeyS': keyState.s = true; break;
         case 'KeyD': keyState.d = true; break;
-        default: break;
     }
 });
-
-// 当按键被松开时，更新状态
-document.addEventListener('keyup', (event) => {
-    switch (event.code) {
+document.addEventListener('keyup', (e) => {
+    switch (e.code) {
         case 'KeyW': keyState.w = false; break;
         case 'KeyA': keyState.a = false; break;
         case 'KeyS': keyState.s = false; break;
         case 'KeyD': keyState.d = false; break;
-        default: break;
     }
 });
 
-// ============================================
-// 第6部分：游戏循环（让场景动起来）
-// ============================================
+// --- 移动端按钮控制 ---
+const btnW = document.getElementById('btn-w');
+const btnA = document.getElementById('btn-a');
+const btnS = document.getElementById('btn-s');
+const btnD = document.getElementById('btn-d');
 
-const clock = new THREE.Clock(); // 用于计算时间差
+function setupButton(btn, key) {
+    const start = (e) => { e.preventDefault(); keyState[key] = true; };
+    const end = (e) => { e.preventDefault(); keyState[key] = false; };
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('mouseup', end);
+    btn.addEventListener('mouseleave', end);
+    btn.addEventListener('touchstart', start, { passive: false });
+    btn.addEventListener('touchend', end, { passive: false });
+    btn.addEventListener('touchcancel', end, { passive: false });
+}
+setupButton(btnW, 'w');
+setupButton(btnA, 'a');
+setupButton(btnS, 's');
+setupButton(btnD, 'd');
+
+// --- 动画循环 ---
+const clock = new THREE.Clock();
+const speed = 5.0;
 
 function animate() {
-    const delta = clock.getDelta(); // 上一帧到这一帧的时间间隔
-    const speed = 10.0; // 移动速度（米/秒）
+    const delta = clock.getDelta();
 
-    // 只有当鼠标被锁定时，才响应WASD移动
-    if (controls.isLocked) {
-        // 计算"向前"的方向（基于相机当前朝向）
-        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
-        forward.y = 0; // 保持水平移动（不飞起来）
-        forward.normalize(); // 归一化（长度为1）
+    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    forward.y = 0;
+    forward.normalize();
+    const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+    right.y = 0;
+    right.normalize();
 
-        // 计算"向右"的方向
-        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
-        right.y = 0;
-        right.normalize();
+    const moveDelta = new THREE.Vector3(0, 0, 0);
+    if (keyState.w) moveDelta.add(forward);
+    if (keyState.s) moveDelta.sub(forward);
+    if (keyState.d) moveDelta.add(right);
+    if (keyState.a) moveDelta.sub(right);
 
-        // 根据按键组合计算移动方向
-        const moveDelta = new THREE.Vector3(0, 0, 0);
-        if (keyState.w) moveDelta.add(forward);  // 向前
-        if (keyState.s) moveDelta.sub(forward);  // 向后
-        if (keyState.d) moveDelta.add(right);    // 向右
-        if (keyState.a) moveDelta.sub(right);    // 向左
-
-        // 如果有移动，则应用移动
-        if (moveDelta.lengthSq() > 0) {
-            moveDelta.normalize().multiplyScalar(speed * delta);
-            camera.position.add(moveDelta);
-        }
+    if (moveDelta.lengthSq() > 0) {
+        moveDelta.normalize().multiplyScalar(speed * delta);
+        camera.position.add(moveDelta);
     }
 
-    // 渲染场景
     renderer.render(scene, camera);
-    requestAnimationFrame(animate); // 请求下一帧
+    requestAnimationFrame(animate);
 }
+animate();
 
-animate(); // 启动游戏循环
-
-// ============================================
-// 第7部分：窗口自适应（当你改变窗口大小时）
-// ============================================
-
-window.addEventListener('resize', onWindowResize, false);
-function onWindowResize() {
+// --- 窗口自适应 ---
+window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-}
+});
+
+console.log('游戏已启动！拖拽旋转视角，WASD 移动。');
