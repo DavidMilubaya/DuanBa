@@ -159,80 +159,88 @@ document.addEventListener('keyup', (e) => {
 });
 
 
-// --- 摇杆控制（支持多点触摸） ---
+// ===== 摇杆控制（多点触摸支持）=====
 const joystickArea = document.getElementById('joystick-area');
 const joystickKnob = document.getElementById('joystick-knob');
+
+let joystickTouchId = null;       // 记录摇杆触摸点 ID
 let joystickActive = false;
 let joystickDelta = { x: 0, z: 0 };
-let joystickTouchId = null; // 跟踪摇杆触摸点
 
-const joystickRadius = 50;
-const knobRadius = 25;
+const maxDist = 40; // 摇杆最大偏移距离（px）
 
-function updateJoystickPosition(touch) {
+function updateJoystick(touch) {
     const rect = joystickArea.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
+
     let dx = touch.clientX - centerX;
     let dy = touch.clientY - centerY;
+
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const maxDist = joystickRadius - knobRadius;
-    let clampedDx = dx, clampedDy = dy;
+    let clampedDx = dx;
+    let clampedDy = dy;
     if (distance > maxDist) {
         clampedDx = (dx / distance) * maxDist;
         clampedDy = (dy / distance) * maxDist;
     }
-    // 移动摇杆内圈
-    const rectW = rect.width, rectH = rect.height;
-    joystickKnob.style.transform = `translate(${-50 + (clampedDx / rectW) * 100}%, ${-50 + (clampedDy / rectH) * 100}%)`;
-    // 输出方向（向上滑→向前）
+
+    // 移动旋钮
+    const knobOffsetX = (clampedDx / rect.width) * 100;
+    const knobOffsetY = (clampedDy / rect.height) * 100;
+    joystickKnob.style.transform = `translate(${-50 + knobOffsetX}%, ${-50 + knobOffsetY}%)`;
+
+    // 计算输出向量（-1 ~ 1）
     const normX = clampedDx / maxDist;
-    const normZ = -clampedDy / maxDist; // 屏幕Y向下，游戏Z向前
+    const normZ = -clampedDy / maxDist;  // 向上 → 向前（Z负方向）
     joystickDelta = { x: normX, z: normZ };
+
+    console.log('摇杆输出:', joystickDelta); // 调试日志
 }
 
-function handleJoystickStart(e) {
+function onJoystickStart(e) {
     e.preventDefault();
-    e.stopPropagation(); // 关键：阻止事件冒泡到画布
-    if (joystickTouchId !== null) return;
+    e.stopPropagation();
+    if (joystickTouchId !== null) return; // 已占用
     const touch = e.touches[0];
     joystickTouchId = touch.identifier;
     joystickActive = true;
-    updateJoystickPosition(touch);
+    updateJoystick(touch);
 }
 
-function handleJoystickMove(e) {
+function onJoystickMove(e) {
     e.preventDefault();
     e.stopPropagation();
     if (joystickTouchId === null) return;
     for (let touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
-            updateJoystickPosition(touch);
+            updateJoystick(touch);
             break;
         }
     }
 }
 
-function handleJoystickEnd(e) {
+function onJoystickEnd(e) {
     e.preventDefault();
     e.stopPropagation();
     if (joystickTouchId === null) return;
     for (let touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
+            // 重置摇杆
+            joystickTouchId = null;
             joystickActive = false;
             joystickDelta = { x: 0, z: 0 };
             joystickKnob.style.transform = 'translate(-50%, -50%)';
-            joystickTouchId = null;
+            console.log('摇杆重置');
             break;
         }
     }
 }
 
-joystickArea.addEventListener('touchstart', handleJoystickStart, { passive: false });
-joystickArea.addEventListener('touchmove', handleJoystickMove, { passive: false });
-joystickArea.addEventListener('touchend', handleJoystickEnd, { passive: false });
-joystickArea.addEventListener('touchcancel', handleJoystickEnd, { passive: false });
-
+joystickArea.addEventListener('touchstart', onJoystickStart, { passive: false });
+joystickArea.addEventListener('touchmove', onJoystickMove, { passive: false });
+joystickArea.addEventListener('touchend', onJoystickEnd, { passive: false });
+joystickArea.addEventListener('touchcancel', onJoystickEnd, { passive: false });
 // --- 动画循环 ---
 const clock = new THREE.Clock();
 const speed = 5.0;
