@@ -218,7 +218,7 @@ function updateJoystickPosition(touch) {
     // 计算方向向量（归一化到 -1 ~ 1）
     // 注意：屏幕坐标 Y 向下，但游戏坐标 Z 向前，所以取反
     const normX = clampedDx / maxDist;
-    const normZ = -clampedDy / maxDist;  // 向上拖拽 => 向前（Z负方向）
+    const normZ = clampedDy / maxDist;  // 向上拖拽 => 向前（Z负方向）
     joystickDelta = { x: normX, z: normZ };
 }
 
