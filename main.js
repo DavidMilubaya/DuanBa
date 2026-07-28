@@ -158,26 +158,75 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
-// --- 移动端按钮控制 ---
-const btnW = document.getElementById('btn-w');
-const btnA = document.getElementById('btn-a');
-const btnS = document.getElementById('btn-s');
-const btnD = document.getElementById('btn-d');
 
-function setupButton(btn, key) {
-    const start = (e) => { e.preventDefault(); keyState[key] = true; };
-    const end = (e) => { e.preventDefault(); keyState[key] = false; };
-    btn.addEventListener('mousedown', start);
-    btn.addEventListener('mouseup', end);
-    btn.addEventListener('mouseleave', end);
-    btn.addEventListener('touchstart', start, { passive: false });
-    btn.addEventListener('touchend', end, { passive: false });
-    btn.addEventListener('touchcancel', end, { passive: false });
+// 获取摇杆元素
+const joystickArea = document.getElementById('joystick-area');
+const joystickKnob = document.getElementById('joystick-knob');
+
+// 摇杆状态
+let joystickActive = false;
+let joystickDelta = { x: 0, z: 0 };  // 范围 -1 ~ 1
+
+// 摇杆半径（像素）
+const joystickRadius = 50; // 外圈半径
+const knobRadius = 25;      // 内圈半径
+
+function handleJoystickStart(e) {
+    e.preventDefault();
+    joystickActive = true;
+    const touch = e.touches[0];
+    updateJoystickPosition(touch);
 }
-setupButton(btnW, 'w');
-setupButton(btnA, 'a');
-setupButton(btnS, 's');
-setupButton(btnD, 'd');
+
+function handleJoystickMove(e) {
+    e.preventDefault();
+    if (!joystickActive) return;
+    const touch = e.touches[0];
+    updateJoystickPosition(touch);
+}
+
+function handleJoystickEnd(e) {
+    e.preventDefault();
+    joystickActive = false;
+    // 重置摇杆
+    joystickDelta = { x: 0, z: 0 };
+    joystickKnob.style.transform = 'translate(-50%, -50%)';
+}
+
+function updateJoystickPosition(touch) {
+    const rect = joystickArea.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    // 计算触摸点相对于中心的偏移（像素）
+    let dx = touch.clientX - centerX;
+    let dy = touch.clientY - centerY;
+
+    // 限制距离在半径内
+    const distance = Math.sqrt(dx * dx + dy * dy);
+    const maxDist = joystickRadius - knobRadius; // 内圈可移动最大距离
+    let clampedDx = dx;
+    let clampedDy = dy;
+    if (distance > maxDist) {
+        clampedDx = (dx / distance) * maxDist;
+        clampedDy = (dy / distance) * maxDist;
+    }
+
+    // 移动摇杆内圈
+    joystickKnob.style.transform = `translate(${-50 + (clampedDx / rect.width) * 100}%, ${-50 + (clampedDy / rect.height) * 100}%)`;
+
+    // 计算方向向量（归一化到 -1 ~ 1）
+    // 注意：屏幕坐标 Y 向下，但游戏坐标 Z 向前，所以取反
+    const normX = clampedDx / maxDist;
+    const normZ = -clampedDy / maxDist;  // 向上拖拽 => 向前（Z负方向）
+    joystickDelta = { x: normX, z: normZ };
+}
+
+// 绑定事件
+joystickArea.addEventListener('touchstart', handleJoystickStart, { passive: false });
+joystickArea.addEventListener('touchmove', handleJoystickMove, { passive: false });
+joystickArea.addEventListener('touchend', handleJoystickEnd, { passive: false });
+joystickArea.addEventListener('touchcancel', handleJoystickEnd, { passive: false });
 
 // --- 动画循环 ---
 const clock = new THREE.Clock();
@@ -193,14 +242,32 @@ function animate() {
     right.y = 0;
     right.normalize();
 
-    const moveDelta = new THREE.Vector3(0, 0, 0);
-    if (keyState.w) moveDelta.add(forward);
-    if (keyState.s) moveDelta.sub(forward);
-    if (keyState.d) moveDelta.add(right);
-    if (keyState.a) moveDelta.sub(right);
+    // --- 合并键盘和摇杆输入 ---
+    let moveX = 0, moveZ = 0;
 
-    if (moveDelta.lengthSq() > 0) {
-        moveDelta.normalize().multiplyScalar(speed * delta);
+    // 键盘输入 (WASD)
+    if (keyState.w) moveZ -= 1;
+    if (keyState.s) moveZ += 1;
+    if (keyState.a) moveX -= 1;
+    if (keyState.d) moveX += 1;
+
+    // 摇杆输入 (触摸)
+    moveX += joystickDelta.x;
+    moveZ += joystickDelta.z;
+
+    // 限制最大幅度为1（避免对角线加速）
+    const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
+    if (len > 1) {
+        moveX /= len;
+        moveZ /= len;
+    }
+
+    // 只有当存在有效输入时才移动
+    if (len > 0.01) {
+        const moveDelta = new THREE.Vector3(0, 0, 0);
+        // 注意：forward 方向是 -Z，所以 moveZ 为负时向前
+        moveDelta.addScaledVector(right, moveX * speed * delta);
+        moveDelta.addScaledVector(forward, -moveZ * speed * delta);
         camera.position.add(moveDelta);
     }
 
