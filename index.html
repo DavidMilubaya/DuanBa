@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>我的3D游戏</title>
+    <title>DuanBa</title>
     <style>
         /* --- 原有样式 --- */
         body {
@@ -25,57 +25,35 @@
             z-index: 10;
         }
         /* --- 新增：移动端控制按钮样式 --- */
-        #mobile-controls {
+        #joystick-area {
             position: absolute;
-            bottom: 30px;
-            left: 30px;
-            display: none; /* 默认隐藏，仅在移动设备上显示 */
+            bottom: 50px;
+            left: 50px;
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.2);
+            border: 2px solid rgba(255,255,255,0.5);
+            display: none; /* 默认隐藏，触屏设备显示 */
+            touch-action: none;
             z-index: 20;
             user-select: none;
-            touch-action: none; /* 防止触摸滚动 */
         }
-
-        .ctrl-btn {
-            width: 60px;
-            height: 60px;
+        #joystick-knob {
+            width: 50px;
+            height: 50px;
             border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            border: 2px solid rgba(255, 255, 255, 0.6);
-            color: white;
-            font-size: 28px;
-            text-align: center;
-            line-height: 60px;
+            background: rgba(255,255,255,0.6);
             position: absolute;
-            touch-action: none;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none; /* 让触摸事件穿透到父容器 */
+            transition: none;
         }
-
-            .ctrl-btn:active {
-                background: rgba(255, 255, 255, 0.6);
-            }
-
-        #btn-w {
-            top: 0;
-            left: 70px;
-        }
-
-        #btn-s {
-            bottom: 0;
-            left: 70px;
-        }
-
-        #btn-a {
-            top: 70px;
-            left: 0;
-        }
-
-        #btn-d {
-            top: 70px;
-            left: 140px;
-        }
-
-        /* 检测移动设备，显示按钮 */
+        /* 触摸设备显示摇杆 */
         @media (pointer: coarse) {
-            #mobile-controls {
+            #joystick-area {
                 display: block;
             }
 
@@ -85,18 +63,16 @@
                 padding: 6px 12px;
             }
         }
+
     </style>
 </head>
 <body>
     <div id="info">🖱️ 拖拽旋转视角 | WASD 移动</div>
-
-    <!-- 移动端控制按钮 -->
-    <div id="mobile-controls">
-        <div class="ctrl-btn" id="btn-w">▲</div>
-        <div class="ctrl-btn" id="btn-s">▼</div>
-        <div class="ctrl-btn" id="btn-a">◀</div>
-        <div class="ctrl-btn" id="btn-d">▶</div>
+    <!-- 遥杆 -->
+    <div id="joystick-area">
+        <div id="joystick-knob"></div>
     </div>
+
 
     <!-- 配置 Three.js 导入映射 -->
     <script type="importmap">
