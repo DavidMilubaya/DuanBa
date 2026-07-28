@@ -267,7 +267,7 @@ function animate() {
         const moveDelta = new THREE.Vector3(0, 0, 0);
         // 注意：forward 方向是 -Z，所以 moveZ 为负时向前
         moveDelta.addScaledVector(right, moveX * speed * delta);
-        moveDelta.addScaledVector(forward, -moveZ * speed * delta);
+        moveDelta.addScaledVector(forward, moveZ * speed * delta);
         camera.position.add(moveDelta);
     }
 
