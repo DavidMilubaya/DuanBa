@@ -159,70 +159,75 @@ document.addEventListener('keyup', (e) => {
 });
 
 
-// 获取摇杆元素
+// --- 摇杆控制（支持多点触摸） ---
 const joystickArea = document.getElementById('joystick-area');
 const joystickKnob = document.getElementById('joystick-knob');
-
-// 摇杆状态
 let joystickActive = false;
-let joystickDelta = { x: 0, z: 0 };  // 范围 -1 ~ 1
+let joystickDelta = { x: 0, z: 0 };
+let joystickTouchId = null; // 跟踪摇杆触摸点
 
-// 摇杆半径（像素）
-const joystickRadius = 50; // 外圈半径
-const knobRadius = 25;      // 内圈半径
-
-function handleJoystickStart(e) {
-    e.preventDefault();
-    joystickActive = true;
-    const touch = e.touches[0];
-    updateJoystickPosition(touch);
-}
-
-function handleJoystickMove(e) {
-    e.preventDefault();
-    if (!joystickActive) return;
-    const touch = e.touches[0];
-    updateJoystickPosition(touch);
-}
-
-function handleJoystickEnd(e) {
-    e.preventDefault();
-    joystickActive = false;
-    // 重置摇杆
-    joystickDelta = { x: 0, z: 0 };
-    joystickKnob.style.transform = 'translate(-50%, -50%)';
-}
+const joystickRadius = 50;
+const knobRadius = 25;
 
 function updateJoystickPosition(touch) {
     const rect = joystickArea.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-
-    // 计算触摸点相对于中心的偏移（像素）
     let dx = touch.clientX - centerX;
     let dy = touch.clientY - centerY;
-
-    // 限制距离在半径内
     const distance = Math.sqrt(dx * dx + dy * dy);
-    const maxDist = joystickRadius - knobRadius; // 内圈可移动最大距离
-    let clampedDx = dx;
-    let clampedDy = dy;
+    const maxDist = joystickRadius - knobRadius;
+    let clampedDx = dx, clampedDy = dy;
     if (distance > maxDist) {
         clampedDx = (dx / distance) * maxDist;
         clampedDy = (dy / distance) * maxDist;
     }
-
     // 移动摇杆内圈
-    joystickKnob.style.transform = `translate(${-50 + (clampedDx / rect.width) * 100}%, ${-50 + (clampedDy / rect.height) * 100}%)`;
-
-    // 计算方向向量（归一化到 -1 ~ 1）
-    // 注意：屏幕坐标 Y 向下，但游戏坐标 Z 向前，所以取反
+    const rectW = rect.width, rectH = rect.height;
+    joystickKnob.style.transform = `translate(${-50 + (clampedDx / rectW) * 100}%, ${-50 + (clampedDy / rectH) * 100}%)`;
+    // 输出方向（向上滑→向前）
     const normX = clampedDx / maxDist;
-    const normZ = -clampedDy / maxDist;  // 向上拖拽 => 向前（Z负方向）
+    const normZ = -clampedDy / maxDist; // 屏幕Y向下，游戏Z向前
     joystickDelta = { x: normX, z: normZ };
 }
 
-// 绑定事件
+function handleJoystickStart(e) {
+    e.preventDefault();
+    e.stopPropagation(); // 关键：阻止事件冒泡到画布
+    if (joystickTouchId !== null) return;
+    const touch = e.touches[0];
+    joystickTouchId = touch.identifier;
+    joystickActive = true;
+    updateJoystickPosition(touch);
+}
+
+function handleJoystickMove(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (joystickTouchId === null) return;
+    for (let touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            updateJoystickPosition(touch);
+            break;
+        }
+    }
+}
+
+function handleJoystickEnd(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (joystickTouchId === null) return;
+    for (let touch of e.changedTouches) {
+        if (touch.identifier === joystickTouchId) {
+            joystickActive = false;
+            joystickDelta = { x: 0, z: 0 };
+            joystickKnob.style.transform = 'translate(-50%, -50%)';
+            joystickTouchId = null;
+            break;
+        }
+    }
+}
+
 joystickArea.addEventListener('touchstart', handleJoystickStart, { passive: false });
 joystickArea.addEventListener('touchmove', handleJoystickMove, { passive: false });
 joystickArea.addEventListener('touchend', handleJoystickEnd, { passive: false });
