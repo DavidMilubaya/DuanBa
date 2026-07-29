@@ -24,7 +24,7 @@ ground.receiveShadow = true;
 scene.add(ground);
 scene.add(new THREE.GridHelper(20, 20, 0x888888, 0x444444));
 
-// --- 方块 ---
+// --- 方块参照物 ---
 const boxMaterial = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
 for (let i = 0; i < 10; i++) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), boxMaterial);
@@ -36,7 +36,7 @@ for (let i = 0; i < 10; i++) {
     scene.add(box);
 }
 
-// --- 模型 ---
+// --- 模型加载 ---
 const loader = new GLTFLoader();
 loader.load(
     'models/Head727.glb',
@@ -58,7 +58,7 @@ dirLight.position.set(5, 10, 7);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-// --- 视角控制 (旋转) ---
+// --- 视角旋转控制 ---
 let pitch = 0;
 let yaw = 0;
 const pitchLimit = Math.PI / 2 - 0.1;
@@ -69,12 +69,12 @@ function updateCameraRotation() {
     camera.rotation.x = pitch;
 }
 
-// 鼠标锁定 (桌面)
+// ---- 桌面鼠标锁定 ----
 let isCoolingDown = false;
 let isLocked = false;
 renderer.domElement.addEventListener('click', () => {
     if (isLocked || isCoolingDown) return;
-    renderer.domElement.requestPointerLock().catch(() => {});
+    renderer.domElement.requestPointerLock().catch(() => { });
 });
 document.addEventListener('pointerlockchange', () => {
     isLocked = !!document.pointerLockElement;
@@ -95,14 +95,13 @@ document.addEventListener('mousemove', (e) => {
     updateCameraRotation();
 });
 
-// ===== 🆕 多点触摸视角控制 (核心改进) =====
-let viewTouchId = null;      // 专门用于视角旋转的触摸 ID
+// ===== 🆕 多点触摸视角控制（使用 changedTouches，专一追踪） =====
+let viewTouchId = null;
 let viewPrevX = 0, viewPrevY = 0;
 
 renderer.domElement.addEventListener('touchstart', (e) => {
-    // 仅当没有视角触摸被占用时，才占用第一个触摸画布的手指
-    if (viewTouchId !== null) return;
-    const touch = e.targetTouches[0];
+    if (viewTouchId !== null) return;          // 已有视角触摸，忽略新手指
+    const touch = e.changedTouches[0];
     if (touch) {
         viewTouchId = touch.identifier;
         viewPrevX = touch.clientX;
@@ -112,17 +111,16 @@ renderer.domElement.addEventListener('touchstart', (e) => {
 
 renderer.domElement.addEventListener('touchmove', (e) => {
     if (viewTouchId === null) return;
-    // 从 targetTouches 中查找我们的触摸 ID
+    // 在 changedTouches 中查找我们的 ID
     let activeTouch = null;
-    for (const touch of e.targetTouches) {
+    for (const touch of e.changedTouches) {
         if (touch.identifier === viewTouchId) {
             activeTouch = touch;
             break;
         }
     }
     if (!activeTouch) {
-        // 如果触摸消失，重置 ID
-        viewTouchId = null;
+        // 如果该手指不在本次变化中，可能是其它手指移动，忽略
         return;
     }
     const dx = activeTouch.clientX - viewPrevX;
@@ -137,19 +135,16 @@ renderer.domElement.addEventListener('touchmove', (e) => {
 
 renderer.domElement.addEventListener('touchend', (e) => {
     if (viewTouchId === null) return;
-    // 检查该触摸是否还存在于 targetTouches 中
+    // 检查该手指是否已离开
     let stillExists = false;
-    for (const touch of e.targetTouches) {
+    for (const touch of e.changedTouches) {
         if (touch.identifier === viewTouchId) {
             stillExists = true;
-            // 更新最新位置，便于后续移动
-            viewPrevX = touch.clientX;
-            viewPrevY = touch.clientY;
             break;
         }
     }
     if (!stillExists) {
-        viewTouchId = null;
+        viewTouchId = null;   // 该手指抬起，释放
     }
 }, { passive: true });
 
@@ -172,7 +167,7 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
-// ===== 摇杆控制 (已完美支持多点触摸，无需改动) =====
+// ===== 摇杆控制（同样使用 changedTouches 精准捕获） =====
 const joystickArea = document.getElementById('joystick-area');
 const joystickKnob = document.getElementById('joystick-knob');
 let joystickTouchId = null;
@@ -201,9 +196,11 @@ function updateJoystick(touch) {
 function onJoystickStart(e) {
     e.preventDefault();
     if (joystickTouchId !== null) return;
-    const touch = e.touches[0];
-    joystickTouchId = touch.identifier;
-    updateJoystick(touch);
+    const touch = e.changedTouches[0];   // 只取触发当前事件的手指
+    if (touch) {
+        joystickTouchId = touch.identifier;
+        updateJoystick(touch);
+    }
 }
 function onJoystickMove(e) {
     e.preventDefault();
@@ -271,4 +268,5 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-console.log('DuanBa 已启动！多点触摸已就绪 (摇杆 + 视角滑动互不干扰)');
+
+console.log('DuanBa 已启动！多点触摸完美兼容 (摇杆 + 视角滑动互不干扰)');
