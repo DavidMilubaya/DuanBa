@@ -6,7 +6,7 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x88ccff);
 
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 1.7, 0);
+camera.position.set(0, 1.7, 5);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -24,7 +24,7 @@ ground.receiveShadow = true;
 scene.add(ground);
 scene.add(new THREE.GridHelper(20, 20, 0x888888, 0x444444));
 
-// --- 方块参照物 ---
+// --- 方块 ---
 const boxMaterial = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
 for (let i = 0; i < 10; i++) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), boxMaterial);
@@ -36,7 +36,7 @@ for (let i = 0; i < 10; i++) {
     scene.add(box);
 }
 
-// --- 模型加载 ---
+// --- 模型 ---
 const loader = new GLTFLoader();
 loader.load(
     'models/Head727.glb',
@@ -58,7 +58,7 @@ dirLight.position.set(5, 10, 7);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-// --- 视角旋转控制 ---
+// --- 视角控制 ---
 let pitch = 0;
 let yaw = 0;
 const pitchLimit = Math.PI / 2 - 0.1;
@@ -73,6 +73,9 @@ function updateCameraRotation() {
 const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 // ---- 点击画布：桌面锁定指针 / 触摸设备进入全屏 ----
+let isCoolingDown = false;
+let isLocked = false;
+
 renderer.domElement.addEventListener('click', () => {
     if (isTouchDevice) {
         // 移动端：请求全屏（需要用户手势）
@@ -80,23 +83,15 @@ renderer.domElement.addEventListener('click', () => {
             // 如果已全屏则退出（可选）
             // document.exitFullscreen();
         } else {
-            document.documentElement.requestFullscreen?.().catch(() => { });
+            document.documentElement.requestFullscreen?.().catch(() => {});
         }
         return;
     }
     // 桌面：指针锁定
     if (isLocked || isCoolingDown) return;
-    renderer.domElement.requestPointerLock().catch(() => { });
+    renderer.domElement.requestPointerLock().catch(() => {});
 });
 
-
-// ---- 桌面鼠标锁定 ----
-let isCoolingDown = false;
-let isLocked = false;
-renderer.domElement.addEventListener('click', () => {
-    if (isLocked || isCoolingDown) return;
-    renderer.domElement.requestPointerLock().catch(() => { });
-});
 document.addEventListener('pointerlockchange', () => {
     isLocked = !!document.pointerLockElement;
     const info = document.getElementById('info');
@@ -108,6 +103,7 @@ document.addEventListener('pointerlockchange', () => {
         info.textContent = '🖱️ 鼠标拖拽环顾 · WASD 移动';
     }
 });
+
 document.addEventListener('mousemove', (e) => {
     if (!isLocked) return;
     yaw -= e.movementX * 0.002;
@@ -116,94 +112,59 @@ document.addEventListener('mousemove', (e) => {
     updateCameraRotation();
 });
 
-// ===== 多点触摸视角控制（画布） =====
-let viewTouchId = null;
+// ===== Pointer Events 多点触摸 (视角 + 摇杆) =====
+let viewPointerId = null;
 let viewPrevX = 0, viewPrevY = 0;
 
-renderer.domElement.addEventListener('touchstart', (e) => {
-    if (viewTouchId !== null) return;
-    const touch = e.changedTouches[0];
-    if (touch) {
-        viewTouchId = touch.identifier;
-        viewPrevX = touch.clientX;
-        viewPrevY = touch.clientY;
-    }
-}, { passive: true });
+renderer.domElement.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0) return;
+    if (viewPointerId !== null) return;
+    viewPointerId = e.pointerId;
+    viewPrevX = e.clientX;
+    viewPrevY = e.clientY;
+    e.preventDefault();
+});
 
-renderer.domElement.addEventListener('touchmove', (e) => {
-    if (viewTouchId === null) return;
-    let activeTouch = null;
-    for (const touch of e.changedTouches) {
-        if (touch.identifier === viewTouchId) {
-            activeTouch = touch;
-            break;
-        }
-    }
-    if (!activeTouch) return;
-    const dx = activeTouch.clientX - viewPrevX;
-    const dy = activeTouch.clientY - viewPrevY;
+renderer.domElement.addEventListener('pointermove', (e) => {
+    if (viewPointerId === null) return;
+    if (e.pointerId !== viewPointerId) return;
+    const dx = e.clientX - viewPrevX;
+    const dy = e.clientY - viewPrevY;
     yaw -= dx * 0.005;
     pitch -= dy * 0.005;
     pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
     updateCameraRotation();
-    viewPrevX = activeTouch.clientX;
-    viewPrevY = activeTouch.clientY;
-}, { passive: true });
+    viewPrevX = e.clientX;
+    viewPrevY = e.clientY;
+    e.preventDefault();
+});
 
-renderer.domElement.addEventListener('touchend', (e) => {
-    if (viewTouchId === null) return;
-    let stillExists = false;
-    for (const touch of e.changedTouches) {
-        if (touch.identifier === viewTouchId) {
-            stillExists = true;
-            break;
-        }
-    }
-    if (!stillExists) {
-        viewTouchId = null;
-    }
-}, { passive: true });
-
-// --- 键盘移动 ---
-const keyState = { w: false, a: false, s: false, d: false };
-document.addEventListener('keydown', (e) => {
-    switch (e.code) {
-        case 'KeyW': keyState.w = true; break;
-        case 'KeyA': keyState.a = true; break;
-        case 'KeyS': keyState.s = true; break;
-        case 'KeyD': keyState.d = true; break;
+renderer.domElement.addEventListener('pointerup', (e) => {
+    if (e.pointerId === viewPointerId) {
+        viewPointerId = null;
+        e.preventDefault();
     }
 });
-document.addEventListener('keyup', (e) => {
-    switch (e.code) {
-        case 'KeyW': keyState.w = false; break;
-        case 'KeyA': keyState.a = false; break;
-        case 'KeyS': keyState.s = false; break;
-        case 'KeyD': keyState.d = false; break;
+renderer.domElement.addEventListener('pointercancel', (e) => {
+    if (e.pointerId === viewPointerId) {
+        viewPointerId = null;
+        e.preventDefault();
     }
 });
 
-// ===== 🆕 摇杆控制（稳健版：遍历触摸点，精准识别摇杆上的手指） =====
+// ---- 摇杆控制 ----
 const joystickArea = document.getElementById('joystick-area');
 const joystickKnob = document.getElementById('joystick-knob');
-let joystickTouchId = null;
+let joystickPointerId = null;
 let joystickDelta = { x: 0, z: 0 };
 const maxDist = 40;
 
-// 工具：判断触摸点是否在摇杆区域内
-function isTouchInJoystick(touch) {
-    const rect = joystickArea.getBoundingClientRect();
-    const x = touch.clientX;
-    const y = touch.clientY;
-    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
-}
-
-function updateJoystick(touch) {
+function updateJoystick(e) {
     const rect = joystickArea.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-    let dx = touch.clientX - centerX;
-    let dy = touch.clientY - centerY;
+    let dx = e.clientX - centerX;
+    let dy = e.clientY - centerY;
     const distance = Math.sqrt(dx * dx + dy * dy);
     let clampedDx = dx, clampedDy = dy;
     if (distance > maxDist) {
@@ -217,47 +178,68 @@ function updateJoystick(touch) {
     joystickDelta.z = -clampedDy / maxDist;
 }
 
-function onJoystickStart(e) {
+function onJoystickDown(e) {
+    if (e.button !== 0) return;
+    if (joystickPointerId !== null) return;
+    joystickPointerId = e.pointerId;
+    updateJoystick(e);
     e.preventDefault();
-    if (joystickTouchId !== null) return;
-    // 遍历所有触摸点，只取位于摇杆区域内的那个
-    for (const touch of e.touches) {
-        if (isTouchInJoystick(touch)) {
-            joystickTouchId = touch.identifier;
-            updateJoystick(touch);
-            break;
-        }
-    }
 }
 
 function onJoystickMove(e) {
+    if (joystickPointerId === null) return;
+    if (e.pointerId !== joystickPointerId) return;
+    updateJoystick(e);
     e.preventDefault();
-    if (joystickTouchId === null) return;
-    for (const touch of e.touches) {
-        if (touch.identifier === joystickTouchId) {
-            updateJoystick(touch);
-            break;
-        }
+}
+
+function onJoystickUp(e) {
+    if (e.pointerId === joystickPointerId) {
+        joystickPointerId = null;
+        joystickDelta = { x: 0, z: 0 };
+        joystickKnob.style.transform = 'translate(-50%, -50%)';
+        e.preventDefault();
     }
 }
 
-function onJoystickEnd(e) {
-    e.preventDefault();
-    if (joystickTouchId === null) return;
-    for (const touch of e.changedTouches) {
-        if (touch.identifier === joystickTouchId) {
-            joystickTouchId = null;
-            joystickDelta = { x: 0, z: 0 };
-            joystickKnob.style.transform = 'translate(-50%, -50%)';
-            break;
-        }
-    }
-}
+joystickArea.addEventListener('pointerdown', onJoystickDown);
+joystickArea.addEventListener('pointermove', onJoystickMove);
+joystickArea.addEventListener('pointerup', onJoystickUp);
+joystickArea.addEventListener('pointercancel', onJoystickUp);
 
-joystickArea.addEventListener('touchstart', onJoystickStart, { passive: false });
-joystickArea.addEventListener('touchmove', onJoystickMove, { passive: false });
-joystickArea.addEventListener('touchend', onJoystickEnd, { passive: false });
-joystickArea.addEventListener('touchcancel', onJoystickEnd, { passive: false });
+renderer.domElement.style.touchAction = 'none';
+joystickArea.style.touchAction = 'none';
+
+// --- 键盘移动 ---
+const keyState = { w: false, a: false, s: false, d: false };
+document.addEventListener('keydown', (e) => {
+    switch (e.code) {
+        case 'KeyW': keyState.w = true; break;
+        case 'KeyA': keyState.a = true; break;
+        case 'KeyS': keyState.s = false; break;
+        case 'KeyD': keyState.d = true; break;
+    }
+});
+document.addEventListener('keyup', (e) => {
+    switch (e.code) {
+        case 'KeyW': keyState.w = false; break;
+        case 'KeyA': keyState.a = false; break;
+        case 'KeyS': keyState.s = false; break;
+        case 'KeyD': keyState.d = false; break;
+    }
+});
+
+// --- 窗口自适应 (全屏和旋转时更新) ---
+function onResize() {
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(width, height);
+}
+window.addEventListener('resize', onResize);
+// 监听全屏变化，因为全屏后尺寸可能变化
+document.addEventListener('fullscreenchange', onResize);
 
 // --- 动画循环 ---
 const clock = new THREE.Clock();
@@ -293,10 +275,4 @@ function animate() {
 }
 animate();
 
-window.addEventListener('resize', () => {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-});
-
-console.log('DuanBa 已启动！多点触摸完美兼容 (摇杆 + 视角滑动互不干扰)');
+console.log('✅ DuanBa 已启动 (支持全屏 & 多点触摸)');
