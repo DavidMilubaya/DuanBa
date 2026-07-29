@@ -74,7 +74,7 @@ let isCoolingDown = false;
 let isLocked = false;
 renderer.domElement.addEventListener('click', () => {
     if (isLocked || isCoolingDown) return;
-    renderer.domElement.requestPointerLock().catch(() => { });
+    renderer.domElement.requestPointerLock().catch(() => {});
 });
 document.addEventListener('pointerlockchange', () => {
     isLocked = !!document.pointerLockElement;
@@ -95,12 +95,12 @@ document.addEventListener('mousemove', (e) => {
     updateCameraRotation();
 });
 
-// ===== 🆕 多点触摸视角控制（使用 changedTouches，专一追踪） =====
+// ===== 多点触摸视角控制（画布） =====
 let viewTouchId = null;
 let viewPrevX = 0, viewPrevY = 0;
 
 renderer.domElement.addEventListener('touchstart', (e) => {
-    if (viewTouchId !== null) return;          // 已有视角触摸，忽略新手指
+    if (viewTouchId !== null) return;
     const touch = e.changedTouches[0];
     if (touch) {
         viewTouchId = touch.identifier;
@@ -111,7 +111,6 @@ renderer.domElement.addEventListener('touchstart', (e) => {
 
 renderer.domElement.addEventListener('touchmove', (e) => {
     if (viewTouchId === null) return;
-    // 在 changedTouches 中查找我们的 ID
     let activeTouch = null;
     for (const touch of e.changedTouches) {
         if (touch.identifier === viewTouchId) {
@@ -119,10 +118,7 @@ renderer.domElement.addEventListener('touchmove', (e) => {
             break;
         }
     }
-    if (!activeTouch) {
-        // 如果该手指不在本次变化中，可能是其它手指移动，忽略
-        return;
-    }
+    if (!activeTouch) return;
     const dx = activeTouch.clientX - viewPrevX;
     const dy = activeTouch.clientY - viewPrevY;
     yaw -= dx * 0.005;
@@ -135,7 +131,6 @@ renderer.domElement.addEventListener('touchmove', (e) => {
 
 renderer.domElement.addEventListener('touchend', (e) => {
     if (viewTouchId === null) return;
-    // 检查该手指是否已离开
     let stillExists = false;
     for (const touch of e.changedTouches) {
         if (touch.identifier === viewTouchId) {
@@ -144,7 +139,7 @@ renderer.domElement.addEventListener('touchend', (e) => {
         }
     }
     if (!stillExists) {
-        viewTouchId = null;   // 该手指抬起，释放
+        viewTouchId = null;
     }
 }, { passive: true });
 
@@ -167,12 +162,20 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
-// ===== 摇杆控制（同样使用 changedTouches 精准捕获） =====
+// ===== 🆕 摇杆控制（稳健版：遍历触摸点，精准识别摇杆上的手指） =====
 const joystickArea = document.getElementById('joystick-area');
 const joystickKnob = document.getElementById('joystick-knob');
 let joystickTouchId = null;
 let joystickDelta = { x: 0, z: 0 };
 const maxDist = 40;
+
+// 工具：判断触摸点是否在摇杆区域内
+function isTouchInJoystick(touch) {
+    const rect = joystickArea.getBoundingClientRect();
+    const x = touch.clientX;
+    const y = touch.clientY;
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
+}
 
 function updateJoystick(touch) {
     const rect = joystickArea.getBoundingClientRect();
@@ -196,22 +199,27 @@ function updateJoystick(touch) {
 function onJoystickStart(e) {
     e.preventDefault();
     if (joystickTouchId !== null) return;
-    const touch = e.changedTouches[0];   // 只取触发当前事件的手指
-    if (touch) {
-        joystickTouchId = touch.identifier;
-        updateJoystick(touch);
+    // 遍历所有触摸点，只取位于摇杆区域内的那个
+    for (const touch of e.touches) {
+        if (isTouchInJoystick(touch)) {
+            joystickTouchId = touch.identifier;
+            updateJoystick(touch);
+            break;
+        }
     }
 }
+
 function onJoystickMove(e) {
     e.preventDefault();
     if (joystickTouchId === null) return;
-    for (const touch of e.changedTouches) {
+    for (const touch of e.touches) {
         if (touch.identifier === joystickTouchId) {
             updateJoystick(touch);
             break;
         }
     }
 }
+
 function onJoystickEnd(e) {
     e.preventDefault();
     if (joystickTouchId === null) return;
@@ -224,6 +232,7 @@ function onJoystickEnd(e) {
         }
     }
 }
+
 joystickArea.addEventListener('touchstart', onJoystickStart, { passive: false });
 joystickArea.addEventListener('touchmove', onJoystickMove, { passive: false });
 joystickArea.addEventListener('touchend', onJoystickEnd, { passive: false });
