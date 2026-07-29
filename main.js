@@ -52,7 +52,7 @@ loader.load(
 );
 
 // --- 灯光 ---
-scene.add(new THREE.AmbientLight(0x404060));
+scene.add(new THREE.AmbientLight(#CD5C5C));
 const dirLight = new THREE.DirectionalLight(0xffffff, 1);
 dirLight.position.set(5, 10, 7);
 dirLight.castShadow = true;
