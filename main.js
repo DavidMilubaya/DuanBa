@@ -1,8 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-
-// --- 场景、相机、渲染器 ---
+// --- 场景 ---
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x88ccff);
 
@@ -14,7 +13,7 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.shadowMap.enabled = true;
 document.body.appendChild(renderer.domElement);
 
-// --- 地面和网格 ---
+// --- 地面 ---
 const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(20, 20),
     new THREE.MeshStandardMaterial({ color: 0x2c3e50, side: THREE.DoubleSide })
@@ -25,7 +24,7 @@ ground.receiveShadow = true;
 scene.add(ground);
 scene.add(new THREE.GridHelper(20, 20, 0x888888, 0x444444));
 
-// --- 方块参照物 ---
+// --- 方块 ---
 const boxMaterial = new THREE.MeshStandardMaterial({ color: 0xe67e22 });
 for (let i = 0; i < 10; i++) {
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), boxMaterial);
@@ -37,27 +36,19 @@ for (let i = 0; i < 10; i++) {
     scene.add(box);
 }
 
-
+// --- 模型 ---
 const loader = new GLTFLoader();
-
 loader.load(
-    'models/Head727.glb', // 替换成你的模型文件路径
+    'models/Head727.glb',
     (gltf) => {
-        // 加载成功，将模型添加到场景中
         const model = gltf.scene;
         model.position.set(0, 2, -3);
         model.scale.set(0.8, 0.8, 0.8);
         scene.add(model);
         console.log('模型加载成功！');
     },
-    (xhr) => {
-        // 加载进度回调 (可选)
-        console.log((xhr.loaded / xhr.total * 100) + '% 已加载');
-    },
-    (error) => {
-        // 加载失败回调
-        console.error('模型加载失败:', error);
-    }
+    (xhr) => { console.log((xhr.loaded / xhr.total * 100) + '% 已加载'); },
+    (error) => { console.error('模型加载失败:', error); }
 );
 
 // --- 灯光 ---
@@ -67,7 +58,7 @@ dirLight.position.set(5, 10, 7);
 dirLight.castShadow = true;
 scene.add(dirLight);
 
-// --- 自定义视角控制 ---
+// --- 视角控制 (旋转) ---
 let pitch = 0;
 let yaw = 0;
 const pitchLimit = Math.PI / 2 - 0.1;
@@ -78,66 +69,89 @@ function updateCameraRotation() {
     camera.rotation.x = pitch;
 }
 
-let isPointerDown = false;
-//点击锁定鼠标移动
-let isCoolingDown = false; // 冷却中
+// 鼠标锁定 (桌面)
+let isCoolingDown = false;
 let isLocked = false;
-let prevPointerX = 0, prevPointerY = 0;
-
-
 renderer.domElement.addEventListener('click', () => {
-    if (isLocked || isCoolingDown) return; // 已锁定或冷却中，不处理
-    renderer.domElement.requestPointerLock().catch(err => {
-        // 如果仍然发生错误，可在此忽略
-        console.warn('锁定请求被拒绝:', err);
-    });
+    if (isLocked || isCoolingDown) return;
+    renderer.domElement.requestPointerLock().catch(() => {});
 });
-// 2. 监听锁定状态变化
 document.addEventListener('pointerlockchange', () => {
-    isLocked = !!document.pointerLockElement; // 如果锁定元素存在则为 true，否则 false
-
+    isLocked = !!document.pointerLockElement;
     const info = document.getElementById('info');
     if (!isLocked) {
         isCoolingDown = true;
-        setTimeout(() => {
-            isCoolingDown = false;
-        }, 300); // 300ms 冷却时间，足够避免错误
-        info.textContent = '🖱️ 点击屏幕锁定鼠标 | WASD 移动';
+        setTimeout(() => { isCoolingDown = false; }, 300);
+        info.textContent = '🕹️ 摇杆移动 · 滑动视角';
     } else {
-        info.textContent = '🖱️ 鼠标移动环顾 | WASD 移动';
+        info.textContent = '🖱️ 鼠标拖拽环顾 · WASD 移动';
     }
 });
-
 document.addEventListener('mousemove', (e) => {
     if (!isLocked) return;
-    const dx = e.movementX || 0;
-    const dy = e.movementY || 0;
-    yaw -= dx * 0.002;      // 灵敏度系数可调
-    pitch -= dy * 0.002;
+    yaw -= e.movementX * 0.002;
+    pitch -= e.movementY * 0.002;
     pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
-    updateCameraRotation();  // 你已有的旋转更新函数
+    updateCameraRotation();
 });
 
+// ===== 🆕 多点触摸视角控制 (核心改进) =====
+let viewTouchId = null;      // 专门用于视角旋转的触摸 ID
+let viewPrevX = 0, viewPrevY = 0;
 
 renderer.domElement.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-        isPointerDown = true;
-        prevPointerX = e.touches[0].clientX;
-        prevPointerY = e.touches[0].clientY;
+    // 仅当没有视角触摸被占用时，才占用第一个触摸画布的手指
+    if (viewTouchId !== null) return;
+    const touch = e.targetTouches[0];
+    if (touch) {
+        viewTouchId = touch.identifier;
+        viewPrevX = touch.clientX;
+        viewPrevY = touch.clientY;
     }
 }, { passive: true });
+
 renderer.domElement.addEventListener('touchmove', (e) => {
-    if (!isPointerDown || e.touches.length !== 1) return;
-    const dx = e.touches[0].clientX - prevPointerX;
-    const dy = e.touches[0].clientY - prevPointerY;
+    if (viewTouchId === null) return;
+    // 从 targetTouches 中查找我们的触摸 ID
+    let activeTouch = null;
+    for (const touch of e.targetTouches) {
+        if (touch.identifier === viewTouchId) {
+            activeTouch = touch;
+            break;
+        }
+    }
+    if (!activeTouch) {
+        // 如果触摸消失，重置 ID
+        viewTouchId = null;
+        return;
+    }
+    const dx = activeTouch.clientX - viewPrevX;
+    const dy = activeTouch.clientY - viewPrevY;
     yaw -= dx * 0.005;
     pitch -= dy * 0.005;
     pitch = Math.max(-pitchLimit, Math.min(pitchLimit, pitch));
     updateCameraRotation();
-    prevPointerX = e.touches[0].clientX;
-    prevPointerY = e.touches[0].clientY;
+    viewPrevX = activeTouch.clientX;
+    viewPrevY = activeTouch.clientY;
 }, { passive: true });
-renderer.domElement.addEventListener('touchend', () => { isPointerDown = false; }, { passive: true });
+
+renderer.domElement.addEventListener('touchend', (e) => {
+    if (viewTouchId === null) return;
+    // 检查该触摸是否还存在于 targetTouches 中
+    let stillExists = false;
+    for (const touch of e.targetTouches) {
+        if (touch.identifier === viewTouchId) {
+            stillExists = true;
+            // 更新最新位置，便于后续移动
+            viewPrevX = touch.clientX;
+            viewPrevY = touch.clientY;
+            break;
+        }
+    }
+    if (!stillExists) {
+        viewTouchId = null;
+    }
+}, { passive: true });
 
 // --- 键盘移动 ---
 const keyState = { w: false, a: false, s: false, d: false };
@@ -158,96 +172,72 @@ document.addEventListener('keyup', (e) => {
     }
 });
 
-
-// ===== 摇杆控制（多点触摸支持）=====
+// ===== 摇杆控制 (已完美支持多点触摸，无需改动) =====
 const joystickArea = document.getElementById('joystick-area');
 const joystickKnob = document.getElementById('joystick-knob');
-
-let joystickTouchId = null;       // 记录摇杆触摸点 ID
-let joystickActive = false;
+let joystickTouchId = null;
 let joystickDelta = { x: 0, z: 0 };
-
-const maxDist = 40; // 摇杆最大偏移距离（px）
+const maxDist = 40;
 
 function updateJoystick(touch) {
     const rect = joystickArea.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + rect.height / 2;
-
     let dx = touch.clientX - centerX;
     let dy = touch.clientY - centerY;
-
     const distance = Math.sqrt(dx * dx + dy * dy);
-    let clampedDx = dx;
-    let clampedDy = dy;
+    let clampedDx = dx, clampedDy = dy;
     if (distance > maxDist) {
         clampedDx = (dx / distance) * maxDist;
         clampedDy = (dy / distance) * maxDist;
     }
-
-    // 移动旋钮
     const knobOffsetX = (clampedDx / rect.width) * 100;
     const knobOffsetY = (clampedDy / rect.height) * 100;
     joystickKnob.style.transform = `translate(${-50 + knobOffsetX}%, ${-50 + knobOffsetY}%)`;
-
-    // 计算输出向量（-1 ~ 1）
-    const normX = clampedDx / maxDist;
-    const normZ = -clampedDy / maxDist;  // 向上 → 向前（Z负方向）
-    joystickDelta = { x: normX, z: normZ };
-
-    console.log('摇杆输出:', joystickDelta); // 调试日志
+    joystickDelta.x = clampedDx / maxDist;
+    joystickDelta.z = -clampedDy / maxDist;
 }
 
 function onJoystickStart(e) {
     e.preventDefault();
-    e.stopPropagation();
-    if (joystickTouchId !== null) return; // 已占用
+    if (joystickTouchId !== null) return;
     const touch = e.touches[0];
     joystickTouchId = touch.identifier;
-    joystickActive = true;
     updateJoystick(touch);
 }
-
 function onJoystickMove(e) {
     e.preventDefault();
-    e.stopPropagation();
     if (joystickTouchId === null) return;
-    for (let touch of e.changedTouches) {
+    for (const touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
             updateJoystick(touch);
             break;
         }
     }
 }
-
 function onJoystickEnd(e) {
     e.preventDefault();
-    e.stopPropagation();
     if (joystickTouchId === null) return;
-    for (let touch of e.changedTouches) {
+    for (const touch of e.changedTouches) {
         if (touch.identifier === joystickTouchId) {
-            // 重置摇杆
             joystickTouchId = null;
-            joystickActive = false;
             joystickDelta = { x: 0, z: 0 };
             joystickKnob.style.transform = 'translate(-50%, -50%)';
-            console.log('摇杆重置');
             break;
         }
     }
 }
-
 joystickArea.addEventListener('touchstart', onJoystickStart, { passive: false });
 joystickArea.addEventListener('touchmove', onJoystickMove, { passive: false });
 joystickArea.addEventListener('touchend', onJoystickEnd, { passive: false });
 joystickArea.addEventListener('touchcancel', onJoystickEnd, { passive: false });
+
 // --- 动画循环 ---
 const clock = new THREE.Clock();
 const speed = 5.0;
 
 function animate() {
     const delta = clock.getDelta();
-
     const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
     forward.y = 0;
     forward.normalize();
@@ -255,45 +245,30 @@ function animate() {
     right.y = 0;
     right.normalize();
 
-    // --- 合并键盘和摇杆输入 ---
     let moveX = 0, moveZ = 0;
-
-    // 键盘输入 (WASD)
     if (keyState.w) moveZ += 1;
     if (keyState.s) moveZ -= 1;
     if (keyState.a) moveX -= 1;
     if (keyState.d) moveX += 1;
-
-    // 摇杆输入 (触摸)
     moveX += joystickDelta.x;
     moveZ += joystickDelta.z;
 
-    // 限制最大幅度为1（避免对角线加速）
     const len = Math.sqrt(moveX * moveX + moveZ * moveZ);
-    if (len > 1) {
-        moveX /= len;
-        moveZ /= len;
-    }
-
-    // 只有当存在有效输入时才移动
+    if (len > 1) { moveX /= len; moveZ /= len; }
     if (len > 0.01) {
         const moveDelta = new THREE.Vector3(0, 0, 0);
-        // 注意：forward 方向是 -Z，所以 moveZ 为负时向前
         moveDelta.addScaledVector(right, moveX * speed * delta);
         moveDelta.addScaledVector(forward, moveZ * speed * delta);
         camera.position.add(moveDelta);
     }
-
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
 animate();
 
-// --- 窗口自适应 ---
 window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
-
-console.log('游戏已启动！拖拽旋转视角，WASD 移动。');
+console.log('DuanBa 已启动！多点触摸已就绪 (摇杆 + 视角滑动互不干扰)');
