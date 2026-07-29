@@ -1,14 +1,17 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>DuanBa</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>DuanBa · 多点触摸</title>
     <style>
-        /* --- 原有样式 --- */
+        /* --- 全局样式 --- */
         body {
             margin: 0;
             overflow: hidden;
+            font-family: Arial, sans-serif;
+            touch-action: none;
+            /* 禁止页面滚动/缩放，提升触屏体验 */;
         }
 
         #info {
@@ -16,15 +19,19 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: white;
-            background: rgba(0,0,0,0.6);
+            color: #fff;
+            background: rgba(0, 0, 0, 0.6);
             padding: 10px 20px;
             border-radius: 8px;
-            font-family: Arial, sans-serif;
             pointer-events: none;
             z-index: 10;
+            font-size: 14px;
+            text-align: center;
+            backdrop-filter: blur(4px);
+            white-space: nowrap;
         }
-        /* --- 新增：移动端控制按钮样式 --- */
+
+        /* --- 摇杆样式 (移动端) --- */
         #joystick-area {
             position: absolute;
             bottom: 50px;
@@ -32,49 +39,64 @@
             width: 120px;
             height: 120px;
             border-radius: 50%;
-            background: rgba(255,255,255,0.2);
-            border: 2px solid rgba(255,255,255,0.5);
-            display: none; /* 默认隐藏，触屏设备显示 */
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            display: none;
             touch-action: none;
             z-index: 20;
             user-select: none;
+            box-shadow: 0 0 30px rgba(0, 0, 0, 0.3);
         }
+
         #joystick-knob {
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            background: rgba(255,255,255,0.6);
+            background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.9), rgba(200, 200, 200, 0.7));
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            pointer-events: none; /* 让触摸事件穿透到父容器 */
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
             transition: none;
+            will-change: transform;
         }
-        /* 触摸设备显示摇杆 */
+
+        /* --- 触屏设备显示摇杆 --- */
         @media (pointer: coarse) {
             #joystick-area {
                 display: block;
             }
 
             #info {
-                font-size: 14px;
-                top: 10px;
-                padding: 6px 12px;
+                font-size: 13px;
+                top: 12px;
+                padding: 6px 14px;
+                white-space: normal;
             }
         }
 
+        /* --- 桌面端小提示 --- */
+        @media (pointer: fine) {
+            #info::after {
+                content: ' | 点击画面锁定鼠标';
+                font-weight: 300;
+                opacity: 0.7;
+            }
+        }
     </style>
 </head>
 <body>
-    <div id="info">🖱️ 拖拽旋转视角 | WASD 移动</div>
-    <!-- 遥杆 -->
+
+    <div id="info">🕹️ 摇杆移动 · 滑动视角</div>
+
+    <!-- 摇杆 DOM -->
     <div id="joystick-area">
         <div id="joystick-knob"></div>
     </div>
 
-
-    <!-- 配置 Three.js 导入映射 -->
+    <!-- Three.js Import Map -->
     <script type="importmap">
         {
             "imports": {
@@ -84,6 +106,7 @@
         }
     </script>
 
+    <!-- 主脚本 -->
     <script type="module" src="main.js"></script>
 </body>
 </html>
